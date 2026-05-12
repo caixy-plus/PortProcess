@@ -2,7 +2,7 @@ class ProcessInfo {
   final int pid;
   final int port;
   final String protocol;
-  final String? name;
+  String? name;
   final String? address;
 
   ProcessInfo({
