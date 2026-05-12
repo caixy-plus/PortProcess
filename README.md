@@ -1,17 +1,73 @@
-# port_manager
+# PortProcess
 
-A new Flutter project.
+A beautiful cross-platform port management tool built with Flutter. Supports macOS, Windows, and Linux.
+
+## Features
+
+- **Real-time Process Monitoring** - Automatically lists all local processes with bound ports
+- **Smart Search** - Filter processes by port number, PID, or process name
+- **One-click Kill** - Terminate processes with a single click (with confirmation)
+- **Native System Integration** - UI colors blend seamlessly with your system accent color
+- **Auto-refresh** - Process list refreshes automatically every 5 seconds
+- **Custom Title Bar** - Clean, modern window chrome on all platforms
 
 ## Getting Started
 
-This project is a starting point for a Flutter application.
+### Prerequisites
 
-A few resources to get you started if this is your first Flutter project:
+- [Flutter](https://flutter.dev/docs/get-started/install) 3.11.5 or higher
+- For macOS: Xcode (for building)
+- For Windows: Visual Studio 2022 (for building)
+- For Linux: GCC toolchain (for building)
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+### Installation
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+# Clone the repository
+git clone https://github.com/caixinyun/portprocess.git
+cd portprocess
+
+# Install dependencies
+flutter pub get
+
+# Run the app
+flutter run
+```
+
+### Building
+
+```bash
+# macOS
+flutter build macos
+
+# Windows
+flutter build windows
+
+# Linux
+flutter build linux
+```
+
+## Architecture
+
+```
+lib/
+├── main.dart                 # App entry point
+├── models/
+│   └── process_info.dart     # Data model for process info
+├── services/
+│   └── process_service.dart  # Platform-specific process fetching
+└── screens/
+    └── home_screen.dart      # Main UI
+```
+
+### Supported Commands per Platform
+
+| Platform | List Ports | Kill Process |
+|----------|-----------|--------------|
+| macOS    | `lsof`    | `kill -9`    |
+| Linux    | `ss` / `netstat` | `kill -9` |
+| Windows  | `netstat` | `taskkill`   |
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
