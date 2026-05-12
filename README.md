@@ -34,7 +34,17 @@ flutter pub get
 flutter run
 ```
 
-### Building
+### Download Prebuilt Binaries
+
+Download the latest release from the [Releases](https://github.com/caixy-plus/PortProcess/releases) page.
+
+| Platform | File |
+|----------|------|
+| macOS (Universal) | `.dmg` |
+| Windows (x86_64) | `.msi` |
+| Linux (x86_64) | `.tar.gz` |
+
+### Building from Source
 
 ```bash
 # macOS
@@ -46,6 +56,20 @@ flutter build windows
 # Linux
 flutter build linux
 ```
+
+### Automated Release
+
+Push a version tag to trigger the GitHub Actions release workflow:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+The workflow will automatically build and upload:
+- `PortProcess_v1.0.0_macos_universal.dmg`
+- `PortProcess_v1.0.0_windows_x86_64.msi`
+- `PortProcess_v1.0.0_linux_x86_64.tar.gz`
 
 ## Architecture
 
