@@ -74,6 +74,7 @@ jobs:
       - name: build msi
         shell: pwsh
         run: |
+          $version = "${{ github.ref_name }}".Replace("v","")
           $wixPath = ".\wix-toolset"
           $buildDir = "build\windows\x64\runner\Release"
 
@@ -81,7 +82,7 @@ jobs:
           & "$wixPath\heat.exe" dir "$buildDir" -gg -sfrag -sreg -srd -dr INSTALLFOLDER -cg ProductComponents -out "wix\harvest.wxs"
 
           # Compile
-          & "$wixPath\candle.exe" -arch x64 -dBuildDir="$buildDir" "wix\PortProcess.wxs" "wix\harvest.wxs" -o wix\
+          & "$wixPath\candle.exe" -arch x64 -dVersion="$version" -dBuildDir="$buildDir" "wix\PortProcess.wxs" "wix\harvest.wxs" -o wix\
 
           # Link
           & "$wixPath\light.exe" -ext WixUIExtension -cultures:en-us "wix\PortProcess.wixobj" "wix\harvest.wixobj" -o "PortProcess-windows-x86_64.msi"
