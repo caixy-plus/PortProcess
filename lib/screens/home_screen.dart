@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../models/process_info.dart';
@@ -25,6 +24,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoading = true;
   String? _error;
   Timer? _refreshTimer;
+  Timer? _searchDebounceTimer;
 
   @override
   void initState() {
@@ -50,6 +50,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    _searchDebounceTimer?.cancel();
     _searchController.dispose();
     _searchFocusNode.dispose();
     super.dispose();
@@ -62,7 +63,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
       setState(() {
         _allProcesses = processes..sort((a, b) => b.port.compareTo(a.port));
-        _onSearchChanged();
+        _applySearchFilter();
         _isLoading = false;
         _error = null;
       });
@@ -76,6 +77,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onSearchChanged() {
+    _searchDebounceTimer?.cancel();
+    _searchDebounceTimer = Timer(const Duration(milliseconds: 200), () {
+      if (mounted) _applySearchFilter();
+    });
+  }
+
+  void _applySearchFilter() {
     final query = _searchController.text.trim().toLowerCase();
     if (query.isEmpty) {
       setState(() => _filteredProcesses = List.from(_allProcesses));
@@ -112,13 +120,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (confirmed != true) return;
 
-    final success = await _processService.killProcess(process.pid);
+    final error = await _processService.killProcess(process.pid);
     if (!mounted) return;
 
-    if (success) {
+    if (error.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Process ${process.pid} killed successfully'),
+          content: Text('Process ${process.pid} killed'),
           backgroundColor: Colors.green,
           duration: const Duration(seconds: 2),
         ),
@@ -126,10 +134,10 @@ class _HomeScreenState extends State<HomeScreen> {
       _loadProcesses();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to kill process'),
+        SnackBar(
+          content: Text(error),
           backgroundColor: Colors.red,
-          duration: Duration(seconds: 2),
+          duration: const Duration(seconds: 3),
         ),
       );
     }

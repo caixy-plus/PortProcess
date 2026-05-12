@@ -31,13 +31,20 @@ class ProcessService {
 
   Future<List<ProcessInfo>> _getLinuxProcesses() async {
     try {
+      // Try ss first, then netstat fallback
       final result = await Process.run('ss', ['-tlnp']);
-      if (result.exitCode != 0) {
-        final netstatResult = await Process.run('netstat', ['-tlnp']);
-        if (netstatResult.exitCode != 0) return [];
-        return _parseNetstatOutput(netstatResult.stdout as String);
+      if (result.exitCode == 0) {
+        final parsed = _parseSsOutput(result.stdout as String);
+        if (parsed.isNotEmpty) return parsed;
       }
-      return _parseSsOutput(result.stdout as String);
+
+      final netstatResult = await Process.run('netstat', ['-tlnp']);
+      if (netstatResult.exitCode == 0) {
+        final parsed = _parseNetstatOutput(netstatResult.stdout as String);
+        if (parsed.isNotEmpty) return parsed;
+      }
+
+      return [];
     } catch (e) {
       return [];
     }
@@ -47,9 +54,42 @@ class ProcessService {
     try {
       final result = await Process.run('netstat', ['-ano']);
       if (result.exitCode != 0) return [];
-      return _parseWindowsNetstat(result.stdout as String);
+      final processes = _parseWindowsNetstat(result.stdout as String);
+      if (processes.isEmpty) return [];
+
+      // Fetch process names via tasklist
+      final nameMap = await _getWindowsProcessNames();
+      for (final p in processes) {
+        if (nameMap.containsKey(p.pid)) {
+          p.name = nameMap[p.pid];
+        }
+      }
+      return processes;
     } catch (e) {
       return [];
+    }
+  }
+
+  Future<Map<int, String>> _getWindowsProcessNames() async {
+    try {
+      final result = await Process.run('tasklist', ['/FO', 'CSV', '/NH']);
+      if (result.exitCode != 0) return {};
+
+      final map = <int, String>{};
+      final lines = (result.stdout as String).split('\n');
+      for (final line in lines) {
+        final parts = line.trim().split('","');
+        if (parts.length < 2) continue;
+        final name = parts[0].replaceAll('"', '');
+        final pidStr = parts[1].replaceAll('"', '');
+        final pid = int.tryParse(pidStr);
+        if (pid != null) {
+          map[pid] = name;
+        }
+      }
+      return map;
+    } catch (e) {
+      return {};
     }
   }
 
@@ -96,30 +136,43 @@ class ProcessService {
     final seen = <String>{};
 
     for (var line in lines.skip(1)) {
-      final parts = line.trim().split(RegExp(r'\s+'));
-      if (parts.length < 6) continue;
+      line = line.trim();
+      if (line.isEmpty) continue;
+
+      // ss -tlnp output format varies; try multiple parsing strategies
+      final parts = line.split(RegExp(r'\s+'));
+      if (parts.length < 5) continue;
 
       final protocol = parts[0].toUpperCase();
-      final localAddr = parts[4];
-      final processPart = parts.length > 6 ? parts[6] : '';
+
+      // Find local address (usually contains a colon with port)
+      String? localAddr;
+      int? pid;
+      String? name;
+
+      for (int i = 1; i < parts.length; i++) {
+        final part = parts[i];
+        if (localAddr == null && RegExp(r':\d+$').hasMatch(part)) {
+          localAddr = part;
+        }
+        if (part.contains('pid=') || part.contains('users:')) {
+          final pidMatch = RegExp(r'pid=(\d+)').firstMatch(part);
+          if (pidMatch != null) {
+            pid = int.tryParse(pidMatch.group(1)!);
+          }
+          final nameMatch = RegExp(r'"([^"]+)"').firstMatch(part);
+          if (nameMatch != null) {
+            name = nameMatch.group(1);
+          }
+        }
+      }
+
+      if (localAddr == null || pid == null) continue;
 
       final portMatch = RegExp(r':(\d+)$').firstMatch(localAddr);
       if (portMatch == null) continue;
       final port = int.tryParse(portMatch.group(1)!);
       if (port == null) continue;
-
-      int? pid;
-      String? name;
-      final pidMatch = RegExp(r'pid=(\d+)').firstMatch(processPart);
-      if (pidMatch != null) {
-        pid = int.tryParse(pidMatch.group(1)!);
-      }
-      final nameMatch = RegExp(r'"([^"]+)"').firstMatch(processPart);
-      if (nameMatch != null) {
-        name = nameMatch.group(1);
-      }
-
-      if (pid == null) continue;
 
       final key = '$pid-$port';
       if (seen.contains(key)) continue;
@@ -143,7 +196,10 @@ class ProcessService {
     final seen = <String>{};
 
     for (var line in lines.skip(2)) {
-      final parts = line.trim().split(RegExp(r'\s+'));
+      line = line.trim();
+      if (line.isEmpty) continue;
+
+      final parts = line.split(RegExp(r'\s+'));
       if (parts.length < 7) continue;
 
       final protocol = parts[0].toUpperCase();
@@ -183,7 +239,10 @@ class ProcessService {
     final seen = <String>{};
 
     for (var line in lines.skip(4)) {
-      final parts = line.trim().split(RegExp(r'\s+'));
+      line = line.trim();
+      if (line.isEmpty) continue;
+
+      final parts = line.split(RegExp(r'\s+'));
       if (parts.length < 5) continue;
 
       final protocol = parts[0].toUpperCase();
@@ -214,17 +273,34 @@ class ProcessService {
     return processes;
   }
 
-  Future<bool> killProcess(int pid) async {
+  /// Returns an empty string on success, or an error message on failure.
+  Future<String> killProcess(int pid) async {
     try {
       if (Platform.isWindows) {
         final result = await Process.run('taskkill', ['/F', '/PID', pid.toString()]);
-        return result.exitCode == 0;
+        if (result.exitCode == 0) return '';
+        final stderr = (result.stderr as String).toLowerCase();
+        if (stderr.contains('access is denied')) {
+          return 'Access denied: run as administrator to kill this process';
+        }
+        if (stderr.contains('not found')) {
+          return 'Process not found (may have already exited)';
+        }
+        return 'Failed to kill process: ${result.stderr}';
       } else {
         final result = await Process.run('kill', ['-9', pid.toString()]);
-        return result.exitCode == 0;
+        if (result.exitCode == 0) return '';
+        final stderr = (result.stderr as String).toLowerCase();
+        if (stderr.contains('operation not permitted')) {
+          return 'Permission denied: run with sudo to kill this process';
+        }
+        if (stderr.contains('no such process')) {
+          return 'Process not found (may have already exited)';
+        }
+        return 'Failed to kill process: ${result.stderr}';
       }
     } catch (e) {
-      return false;
+      return 'Failed to kill process: $e';
     }
   }
 }
