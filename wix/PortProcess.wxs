@@ -1,70 +1,53 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-
-  <Package Name="PortProcess"
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*"
+           Name="PortProcess"
+           Language="1033"
+           Version="$(var.Version)"
            Manufacturer="PortProcess"
-           Version="1.0.0.0"
-           UpgradeCode="a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-           Language="1033">
+           UpgradeCode="a1b2c3d4-e5f6-7890-abcd-ef1234567890">
 
-    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+    <Package InstallerVersion="200"
+             Compressed="yes"
+             InstallScope="perMachine"
+             Platform="x64" />
 
+    <MajorUpgrade DowngradeErrorMessage="A newer version of PortProcess is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
-    <Icon Id="AppIcon" SourceFile="$(var.SourceDir)/app_icon.ico" />
-    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+    <Feature Id="ProductFeature" Title="PortProcess" Level="1">
+      <ComponentGroupRef Id="ProductComponents" />
+    </Feature>
 
-    <Feature Id="Main">
-      <ComponentGroupRef Id="AppComponents" />
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLFOLDER" Name="PortProcess" />
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="ApplicationProgramsFolder" Name="PortProcess" />
+      </Directory>
+    </Directory>
+
+    <DirectoryRef Id="ApplicationProgramsFolder">
+      <Component Id="ApplicationShortcut" Guid="*">
+        <Shortcut Id="ApplicationStartMenuShortcut"
+                  Name="PortProcess"
+                  Description="PortProcess - Cross-platform port management tool"
+                  Target="[INSTALLFOLDER]port_manager.exe"
+                  WorkingDirectory="INSTALLFOLDER" />
+        <RemoveFolder Id="CleanUpShortCut" Directory="ApplicationProgramsFolder" On="uninstall" />
+        <RegistryValue Root="HKCU" Key="Software\PortProcess" Name="installed" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <Feature Id="MainApplication" Title="PortProcess" Level="1">
+      <ComponentGroupRef Id="ProductComponents" />
       <ComponentRef Id="ApplicationShortcut" />
     </Feature>
 
-    <StandardDirectory Id="ProgramFiles64Folder">
-      <Directory Id="INSTALLFOLDER" Name="PortProcess" />
-    </StandardDirectory>
+    <UIRef Id="WixUI_InstallDir" />
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+    <WixVariable Id="WixUILicenseRtf" Value="" />
 
-    <StandardDirectory Id="ProgramMenuFolder">
-      <Directory Id="ApplicationProgramsFolder" Name="PortProcess">
-        <Component Id="ApplicationShortcut" Guid="*">
-          <Shortcut Id="ApplicationStartMenuShortcut"
-                    Name="PortProcess"
-                    Description="PortProcess - Cross-platform port management tool"
-                    Target="[!PortProcessExe]"
-                    WorkingDirectory="INSTALLFOLDER"
-                    Icon="AppIcon" />
-          <RemoveFolder Id="CleanUpShortCut" Directory="ApplicationProgramsFolder" On="uninstall" />
-          <RegistryValue Root="HKCU" Key="Software\PortProcess" Name="installed" Type="integer" Value="1" KeyPath="yes" />
-        </Component>
-      </Directory>
-    </StandardDirectory>
-
-    <ComponentGroup Id="AppComponents" Directory="INSTALLFOLDER">
-      <Component Id="MainExecutable" Guid="*">
-        <File Id="PortProcessExe" Source="$(var.SourceDir)/port_manager.exe" KeyPath="yes" />
-      </Component>
-      <Component Id="FlutterEngine" Guid="*">
-        <File Id="FlutterDll" Source="$(var.SourceDir)/flutter_windows.dll" />
-      </Component>
-      <Component Id="DataFiles" Guid="*">
-        <File Id="AppSo" Source="$(var.SourceDir)/data/app.so" />
-        <File Id="IcuDtl" Source="$(var.SourceDir)/data/icudtl.dat" />
-      </Component>
-      <Component Id="FlutterAssets" Guid="*">
-        <File Id="AssetManifest" Source="$(var.SourceDir)/data/flutter_assets/AssetManifest.bin" />
-        <File Id="FontManifest" Source="$(var.SourceDir)/data/flutter_assets/FontManifest.json" />
-        <File Id="NativeAssetsManifest" Source="$(var.SourceDir)/data/flutter_assets/NativeAssetsManifest.json" />
-        <File Id="NoticesZ" Source="$(var.SourceDir)/data/flutter_assets/NOTICES.Z" />
-      </Component>
-      <Component Id="MaterialIcons" Guid="*">
-        <File Id="MaterialIconsFont" Source="$(var.SourceDir)/data/flutter_assets/fonts/MaterialIcons-Regular.otf" />
-      </Component>
-      <Component Id="CupertinoIcons" Guid="*">
-        <File Id="CupertinoIconsFont" Source="$(var.SourceDir)/data/flutter_assets/packages/cupertino_icons/assets/CupertinoIcons.ttf" />
-      </Component>
-      <Component Id="Shaders" Guid="*">
-        <File Id="InkSparkle" Source="$(var.SourceDir)/data/flutter_assets/shaders/ink_sparkle.frag" />
-      </Component>
-    </ComponentGroup>
-
-  </Package>
+  </Product>
 </Wix>

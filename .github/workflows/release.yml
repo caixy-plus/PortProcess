@@ -94,26 +94,32 @@ jobs:
       - name: Build Windows
         run: flutter build windows --release
 
-      - name: Build MSI
+      - name: Build MSI with WiX v3
         shell: pwsh
         run: |
-          # 安装 WiX v5
-          dotnet tool install --global wix --version 5.0.0
-          $env:PATH += ";$env:USERPROFILE\.dotnet\tools"
-
-          # 自动定位 Release 路径并转为绝对路径
-          $relPath = "build\windows\x64\runner\Release"
-          if (!(Test-Path $relPath)) { $relPath = "build\windows\runner\Release" }
-          $fullPath = (Resolve-Path $relPath).Path
-
-          # 复制 icon 到 SourceDir
-          Copy-Item "windows\runner\resources\app_icon.ico" -Destination "$fullPath" -Force
-
-          # 执行构建
-          & wix build wix\PortProcess.wxs `
-            -d SourceDir="$fullPath" `
-            -arch x64 `
-            -o PortProcess-windows.msi
+          # 下载 WiX v3
+          $wixUrl = "https://github.com/wixtoolset/wix3/releases/download/wix3112rtm/wix311-binaries.zip"
+          Invoke-WebRequest -Uri $wixUrl -OutFile wix.zip
+          Expand-Archive -Path wix.zip -DestinationPath .\wix-toolset -Force
+          
+          $wixPath = ".\wix-toolset"
+          $version = "${{ github.ref_name }}".Replace("v","")
+          
+          # 确定构建目录
+          $buildDir = "build\windows\x64\runner\Release"
+          if (!(Test-Path $buildDir)) { $buildDir = "build\windows\runner\Release" }
+          
+          # 创建 wix 输出目录
+          New-Item -ItemType Directory -Force -Path "wix\output"
+          
+          # 使用 heat 自动收集文件
+          & "$wixPath\heat.exe" dir "$buildDir" -gg -sfrag -sreg -srd -dr INSTALLFOLDER -cg ProductComponents -out "wix\output\harvest.wxs"
+          
+          # 编译
+          & "$wixPath\candle.exe" -arch x64 -dVersion="$version" -dBuildDir="$buildDir" "wix\PortProcess.wxs" "wix\output\harvest.wxs" -o "wix\output\\"
+          
+          # 链接
+          & "$wixPath\light.exe" -ext WixUIExtension -cultures:en-us "wix\output\PortProcess.wixobj" "wix\output\harvest.wixobj" -o "PortProcess-windows.msi"
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
@@ -150,6 +156,7 @@ jobs:
         run: |
           cd build/linux/x64/release/bundle
           tar czf "../../../PortProcess-linux-x86_64.tar.gz" *
+          cd ../../..
 
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v4
@@ -162,6 +169,7 @@ jobs:
     name: Publish Release
     runs-on: ubuntu-latest
     needs: [build-macos, build-windows, build-linux]
+    if: always() && needs.build-macos.result == 'success' && needs.build-windows.result == 'success' && needs.build-linux.result == 'success'
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
