@@ -224,41 +224,10 @@ class _HomeScreenState extends State<HomeScreen> {
     required VoidCallback onPressed,
     Color? hoverColor,
   }) {
-    return StatefulBuilder(
-      builder: (context, setState) {
-        final isHovered = ValueNotifier<bool>(false);
-        return MouseRegion(
-          onEnter: (_) => isHovered.value = true,
-          onExit: (_) => isHovered.value = false,
-          child: ValueListenableBuilder<bool>(
-            valueListenable: isHovered,
-            builder: (context, hovered, child) {
-              final bgColor = hovered
-                  ? (hoverColor ?? Colors.white.withOpacity(0.15))
-                  : Colors.transparent;
-              final iconColor = hovered && hoverColor == Colors.red
-                  ? Colors.white
-                  : null;
-              return GestureDetector(
-                onTap: onPressed,
-                child: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: bgColor,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    icon,
-                    size: 16,
-                    color: iconColor,
-                  ),
-                ),
-              );
-            },
-          ),
-        );
-      },
+    return _WindowControlButton(
+      icon: icon,
+      onPressed: onPressed,
+      hoverColor: hoverColor,
     );
   }
 
@@ -530,6 +499,64 @@ class _ProcessListTileState extends State<_ProcessListTile> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Windows 原生风格的窗口控制按钮
+/// 最小化/最大化：hover 时显示深灰色背景
+/// 关闭：hover 时显示红色背景，图标变白
+class _WindowControlButton extends StatefulWidget {
+  final IconData icon;
+  final VoidCallback onPressed;
+  final Color? hoverColor;
+
+  const _WindowControlButton({
+    required this.icon,
+    required this.onPressed,
+    this.hoverColor,
+  });
+
+  @override
+  State<_WindowControlButton> createState() => _WindowControlButtonState();
+}
+
+class _WindowControlButtonState extends State<_WindowControlButton> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isCloseButton = widget.hoverColor == Colors.red;
+    
+    // Windows 原生颜色
+    final Color defaultHoverBg = const Color(0xFFE5E5E5); // 浅灰色
+    final Color closeHoverBg = const Color(0xFFE81123);   // 红色
+    final Color darkHoverBg = const Color(0xFF404040);    // 深灰色（深色模式）
+    
+    final bgColor = _isHovered
+        ? (isCloseButton ? closeHoverBg : defaultHoverBg)
+        : Colors.transparent;
+    
+    final iconColor = _isHovered && isCloseButton
+        ? Colors.white
+        : null;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: GestureDetector(
+        onTap: widget.onPressed,
+        child: Container(
+          width: 46,
+          height: 32,
+          color: bgColor,
+          child: Icon(
+            widget.icon,
+            size: 14,
+            color: iconColor,
+          ),
+        ),
+      ),
     );
   }
 }
