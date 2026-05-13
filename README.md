@@ -1,7 +1,7 @@
 # PortProcess
 
 A beautiful cross-platform port management tool built with Flutter. Supports macOS, Windows, and Linux.
-
+![screenshot.png](screenshot.png)
 ## Features
 
 - **Real-time Process Monitoring** - Automatically lists all local processes with bound ports
@@ -21,7 +21,6 @@ A beautiful cross-platform port management tool built with Flutter. Supports mac
 - For Linux: GCC toolchain (for building)
 
 ### Installation
-
 ```bash
 # Clone the repository
 git clone https://github.com/caixinyun/portprocess.git
