@@ -224,14 +224,41 @@ class _HomeScreenState extends State<HomeScreen> {
     required VoidCallback onPressed,
     Color? hoverColor,
   }) {
-    return SizedBox(
-      width: 40,
-      height: 40,
-      child: InkWell(
-        onTap: onPressed,
-        hoverColor: hoverColor?.withOpacity(0.8) ?? Colors.white.withOpacity(0.1),
-        child: Icon(icon, size: 16),
-      ),
+    return StatefulBuilder(
+      builder: (context, setState) {
+        final isHovered = ValueNotifier<bool>(false);
+        return MouseRegion(
+          onEnter: (_) => isHovered.value = true,
+          onExit: (_) => isHovered.value = false,
+          child: ValueListenableBuilder<bool>(
+            valueListenable: isHovered,
+            builder: (context, hovered, child) {
+              final bgColor = hovered
+                  ? (hoverColor ?? Colors.white.withOpacity(0.15))
+                  : Colors.transparent;
+              final iconColor = hovered && hoverColor == Colors.red
+                  ? Colors.white
+                  : null;
+              return GestureDetector(
+                onTap: onPressed,
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: bgColor,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 16,
+                    color: iconColor,
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 
