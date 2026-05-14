@@ -39,7 +39,7 @@ class _HomeScreenState extends State<HomeScreen> with WindowListener {
 
   Future<void> _initWindow() async {
     await windowManager.ensureInitialized();
-    await windowManager.setTitle('Port Manager');
+    await windowManager.setTitle('Port Process');
     await windowManager.setMinimumSize(const Size(800, 500));
     final maximized = await windowManager.isMaximized();
     if (mounted) setState(() => _isMaximized = maximized);
@@ -203,7 +203,7 @@ class _HomeScreenState extends State<HomeScreen> with WindowListener {
             Icon(Icons.settings_ethernet, size: 18, color: theme.colorScheme.primary),
             const SizedBox(width: 8),
             Text(
-              'Port Manager',
+              'Port Process',
               style: theme.textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w600,
               ),
