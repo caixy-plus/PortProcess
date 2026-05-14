@@ -13,7 +13,7 @@ void main() async {
   final windowOptions = WindowOptions(
     size: const Size(900, 600),
     center: true,
-    title: 'PortProcess',
+    title: 'Port Process',
     titleBarStyle: TitleBarStyle.hidden,
     windowButtonVisibility: false,
     backgroundColor: Colors.transparent,
@@ -35,7 +35,7 @@ class PortProcessApp extends StatelessWidget {
     final accentColor = SystemTheme.accentColor.accent;
 
     return MaterialApp(
-      title: 'PortProcess',
+      title: 'Port Process',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
