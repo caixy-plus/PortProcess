@@ -14,7 +14,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WindowListener {
   final ProcessService _processService = ProcessService();
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
@@ -25,10 +25,12 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _error;
   Timer? _refreshTimer;
   Timer? _searchDebounceTimer;
+  bool _isMaximized = false;
 
   @override
   void initState() {
     super.initState();
+    windowManager.addListener(this);
     _initWindow();
     _loadProcesses();
     _startAutoRefresh();
@@ -39,6 +41,18 @@ class _HomeScreenState extends State<HomeScreen> {
     await windowManager.ensureInitialized();
     await windowManager.setTitle('Port Manager');
     await windowManager.setMinimumSize(const Size(800, 500));
+    final maximized = await windowManager.isMaximized();
+    if (mounted) setState(() => _isMaximized = maximized);
+  }
+
+  @override
+  void onWindowMaximize() {
+    if (mounted) setState(() => _isMaximized = true);
+  }
+
+  @override
+  void onWindowUnmaximize() {
+    if (mounted) setState(() => _isMaximized = false);
   }
 
   void _startAutoRefresh() {
@@ -49,6 +63,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    windowManager.removeListener(this);
     _refreshTimer?.cancel();
     _searchDebounceTimer?.cancel();
     _searchController.dispose();
@@ -174,9 +189,9 @@ class _HomeScreenState extends State<HomeScreen> {
       onPanStart: (_) => windowManager.startDragging(),
       onDoubleTap: () async {
         if (await windowManager.isMaximized()) {
-          windowManager.unmaximize();
+          await windowManager.unmaximize();
         } else {
-          windowManager.maximize();
+          await windowManager.maximize();
         }
       },
       child: Container(
@@ -197,14 +212,16 @@ class _HomeScreenState extends State<HomeScreen> {
             _buildWindowButton(
               icon: Icons.remove,
               onPressed: () => windowManager.minimize(),
+              borderRadius: const BorderRadius.horizontal(left: Radius.circular(6)),
             ),
             _buildWindowButton(
-              icon: Icons.crop_square,
+              icon: _isMaximized ? null : Icons.crop_square,
+              customIcon: _isMaximized ? _RestoreIcon(color: theme.iconTheme.color) : null,
               onPressed: () async {
                 if (await windowManager.isMaximized()) {
-                  windowManager.unmaximize();
+                  await windowManager.unmaximize();
                 } else {
-                  windowManager.maximize();
+                  await windowManager.maximize();
                 }
               },
             ),
@@ -212,7 +229,9 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: Icons.close,
               onPressed: () => windowManager.close(),
               hoverColor: Colors.red,
+              borderRadius: const BorderRadius.all(Radius.circular(12)),
             ),
+            const SizedBox(width: 4),
           ],
         ),
       ),
@@ -220,14 +239,18 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildWindowButton({
-    required IconData icon,
     required VoidCallback onPressed,
+    IconData? icon,
+    Widget? customIcon,
     Color? hoverColor,
+    BorderRadius? borderRadius,
   }) {
     return _WindowControlButton(
       icon: icon,
+      customIcon: customIcon,
       onPressed: onPressed,
       hoverColor: hoverColor,
+      borderRadius: borderRadius,
     );
   }
 
@@ -263,7 +286,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 filled: true,
                 fillColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(4),
                   borderSide: BorderSide.none,
                 ),
                 contentPadding: const EdgeInsets.symmetric(vertical: 10),
@@ -404,7 +427,7 @@ class _ProcessListTileState extends State<_ProcessListTile> {
               height: 40,
               decoration: BoxDecoration(
                 color: theme.colorScheme.primaryContainer.withOpacity(0.4),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(4),
               ),
               child: Center(
                 child: Text(
@@ -507,15 +530,19 @@ class _ProcessListTileState extends State<_ProcessListTile> {
 /// 最小化/最大化：hover 时显示深灰色背景
 /// 关闭：hover 时显示红色背景，图标变白
 class _WindowControlButton extends StatefulWidget {
-  final IconData icon;
+  final IconData? icon;
+  final Widget? customIcon;
   final VoidCallback onPressed;
   final Color? hoverColor;
+  final BorderRadius? borderRadius;
 
   const _WindowControlButton({
-    required this.icon,
+    this.icon,
+    this.customIcon,
     required this.onPressed,
     this.hoverColor,
-  });
+    this.borderRadius,
+  }) : assert(icon != null || customIcon != null);
 
   @override
   State<_WindowControlButton> createState() => _WindowControlButtonState();
@@ -527,19 +554,15 @@ class _WindowControlButtonState extends State<_WindowControlButton> {
   @override
   Widget build(BuildContext context) {
     final isCloseButton = widget.hoverColor == Colors.red;
-    
-    // Windows 原生颜色
-    final Color defaultHoverBg = const Color(0xFFE5E5E5); // 浅灰色
-    final Color closeHoverBg = const Color(0xFFE81123);   // 红色
-    final Color darkHoverBg = const Color(0xFF404040);    // 深灰色（深色模式）
-    
+
+    final Color defaultHoverBg = const Color(0xFFE5E5E5);
+    final Color closeHoverBg = const Color(0xFFE81123);
+
     final bgColor = _isHovered
         ? (isCloseButton ? closeHoverBg : defaultHoverBg)
         : Colors.transparent;
-    
-    final iconColor = _isHovered && isCloseButton
-        ? Colors.white
-        : null;
+
+    final iconColor = _isHovered && isCloseButton ? Colors.white : null;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -547,15 +570,63 @@ class _WindowControlButtonState extends State<_WindowControlButton> {
       child: GestureDetector(
         onTap: widget.onPressed,
         child: Container(
-          width: 46,
+          width: 32,
           height: 32,
-          color: bgColor,
-          child: Icon(
-            widget.icon,
-            size: 14,
-            color: iconColor,
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: widget.borderRadius,
+          ),
+          child: Center(
+            child: widget.customIcon ?? Icon(
+              widget.icon!,
+              size: 14,
+              color: iconColor,
+            ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _RestoreIcon extends StatelessWidget {
+  final Color? color;
+
+  const _RestoreIcon({this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final effectiveColor = color ?? Theme.of(context).iconTheme.color ?? Colors.black;
+
+    return SizedBox(
+      width: 14,
+      height: 14,
+      child: Stack(
+        children: [
+          Positioned(
+            left: 2,
+            top: 0,
+            child: Container(
+              width: 10,
+              height: 8,
+              decoration: BoxDecoration(
+                border: Border.all(color: effectiveColor, width: 1.2),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            top: 4,
+            child: Container(
+              width: 10,
+              height: 8,
+              decoration: BoxDecoration(
+                border: Border.all(color: effectiveColor, width: 1.2),
+                color: effectiveColor.withOpacity(0.1),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
