@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
   <Product Id="*"
-           Name="PortProcess"
+           Name="Port Process"
            Language="1033"
            Version="$(var.Version)"
-           Manufacturer="PortProcess"
+           Manufacturer="Port Process"
            UpgradeCode="a1b2c3d4-e5f6-7890-abcd-ef1234567890">
 
     <Package InstallerVersion="200"
@@ -12,35 +12,35 @@
              InstallScope="perMachine"
              Platform="x64" />
 
-    <MajorUpgrade DowngradeErrorMessage="A newer version of PortProcess is already installed." />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Port Process is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
-    <Feature Id="ProductFeature" Title="PortProcess" Level="1">
+    <Feature Id="ProductFeature" Title="Port Process" Level="1">
       <ComponentGroupRef Id="ProductComponents" />
     </Feature>
 
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="ProgramFiles64Folder">
-        <Directory Id="INSTALLFOLDER" Name="PortProcess" />
+        <Directory Id="INSTALLFOLDER" Name="Port Process" />
       </Directory>
       <Directory Id="ProgramMenuFolder">
-        <Directory Id="ApplicationProgramsFolder" Name="PortProcess" />
+        <Directory Id="ApplicationProgramsFolder" Name="Port Process" />
       </Directory>
     </Directory>
 
     <DirectoryRef Id="ApplicationProgramsFolder">
       <Component Id="ApplicationShortcut" Guid="*">
         <Shortcut Id="ApplicationStartMenuShortcut"
-                  Name="PortProcess"
-                  Description="PortProcess - Cross-platform port management tool"
+                  Name="Port Process"
+                  Description="Port Process - Cross-platform port management tool"
                   Target="[INSTALLFOLDER]port_manager.exe"
                   WorkingDirectory="INSTALLFOLDER" />
         <RemoveFolder Id="CleanUpShortCut" Directory="ApplicationProgramsFolder" On="uninstall" />
-        <RegistryValue Root="HKCU" Key="Software\PortProcess" Name="installed" Type="integer" Value="1" KeyPath="yes" />
+        <RegistryValue Root="HKCU" Key="Software\Port Process" Name="installed" Type="integer" Value="1" KeyPath="yes" />
       </Component>
     </DirectoryRef>
 
-    <Feature Id="MainApplication" Title="PortProcess" Level="1">
+    <Feature Id="MainApplication" Title="Port Process" Level="1">
       <ComponentGroupRef Id="ProductComponents" />
       <ComponentRef Id="ApplicationShortcut" />
     </Feature>
