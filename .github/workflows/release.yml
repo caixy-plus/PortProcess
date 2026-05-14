@@ -41,14 +41,14 @@ jobs:
 
       - name: Prepare and Create DMG
         run: |
-          APP_PATH="build/macos/Build/Products/Release/port_manager.app"
+          APP_PATH="build/macos/Build/Products/Release/Port Process.app"
           DMG_PATH="PortProcess-macos.dmg"
 
           # 移除所有扩展属性 (com.apple.quarantine 等)
           xattr -cr "$APP_PATH"
 
           # 确保二进制文件有执行权限
-          chmod +x "$APP_PATH/Contents/MacOS/port_manager"
+          chmod +x "$APP_PATH/Contents/MacOS/Port Process"
 
           # 使用 create-dmg 创建美观的 DMG
           create-dmg \
@@ -56,9 +56,9 @@ jobs:
             --window-pos 200 200 \
             --window-size 600 400 \
             --icon-size 80 \
-            --icon "port_manager.app" 150 200 \
+            --icon "Port Process.app" 150 200 \
             --app-drop-link 450 200 \
-            --hide-extension "port_manager.app" \
+            --hide-extension "Port Process.app" \
             --format UDZO \
             "$DMG_PATH" \
             "$APP_PATH"
