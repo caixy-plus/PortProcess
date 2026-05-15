@@ -1,16 +1,16 @@
 ---
 name: flutter-github-workflows
-description: Flutter 桌面应用跨平台打包与 GitHub Actions 发布方案。覆盖 Windows MSI（WiX v3）、macOS DMG、Android APK 的 CI/CD 完整配置，包含所有已知坑点与修复方案。
+description: Flutter 跨平台应用 GitHub Actions CI/CD 打包与发布方案。覆盖 Android APK（签名）、macOS DMG、Windows MSI（WiX v3）、Web 的完整工作流配置与坑点清单。
 user-invocable: true
 ---
 
-# Flutter 桌面应用跨平台打包与发布 Skill
+# Flutter 跨平台 GitHub Actions 打包与发布 Skill
 
 ## 适用场景
 
-- Flutter 桌面应用（Windows + macOS）需要打包成可安装格式
-- 需要通过 GitHub Actions 自动构建并发布 Release
-- 需要避免已知的 WiX / GitHub Actions 平台坑点
+- Flutter 项目需要同时构建 Android / macOS / Windows / Web
+- 通过 GitHub Actions 自动打包并发布 GitHub Release
+- 需要避免各平台已知的 CI 坑点
 
 ## 前置检查
 
@@ -19,9 +19,145 @@ user-invocable: true
 3. `windows/runner/Runner.rc` 中的 `OriginalFilename` 也需同步
 4. GitHub Actions 触发条件：`push tags: 'v*'`
 
+## 完整工作流结构
+
+```yaml
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+env:
+  FLUTTER_VERSION: '3.x.x'
+
+jobs:
+  build-android:
+  build-macos:
+  build-windows:
+  build-web:
+  publish-release:
+```
+
+---
+
+## Android APK 打包（签名版）
+
+### 前置 Secrets
+
+在仓库 Settings > Secrets and variables > Actions 中配置：
+
+| Secret | 说明 |
+|---|---|
+| `KEYSTORE_PASSWORD` | keystore 密码 |
+| `KEY_PASSWORD` | key 密码 |
+| `KEY_ALIAS` | key alias |
+| `KEYSTORE_FILE` | keystore 文件 base64 编码 |
+
+### GitHub Actions Android Job
+
+```yaml
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Create key.properties
+        run: |
+          echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" > android/key.properties
+          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
+          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
+          echo "${{ secrets.KEYSTORE_FILE }}" | base64 -d > android/app/release.jks
+
+      - run: flutter build apk --release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7
+```
+
+---
+
+## macOS DMG 打包
+
+```yaml
+  build-macos:
+    name: Build macOS
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+
+      - run: flutter pub get
+      - run: cd macos && pod install && cd ..
+      - run: flutter build macos --release
+
+      - name: Install create-dmg
+        run: |
+          if ! command -v create-dmg &> /dev/null; then
+            brew install create-dmg
+          fi
+
+      - name: Prepare and Create DMG
+        run: |
+          APP_PATH="build/macos/Build/Products/Release/<AppName>.app"
+          DMG_PATH="<AppName>-macos.dmg"
+
+          xattr -cr "$APP_PATH"
+          chmod +x "$APP_PATH/Contents/MacOS/<AppName>"
+
+          create-dmg \
+            --volname "<AppName>" \
+            --window-pos 200 200 \
+            --window-size 600 400 \
+            --icon-size 80 \
+            --icon "<AppName>.app" 150 200 \
+            --app-drop-link 450 200 \
+            --hide-extension "<AppName>.app" \
+            --format UDZO \
+            "$DMG_PATH" \
+            "$APP_PATH"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          path: <AppName>-macos.dmg
+          retention-days: 7
+```
+
+---
+
 ## Windows MSI 打包（WiX Toolset v3）
 
-### 目录结构
+### WiX 文件目录
 
 ```
 wix/
@@ -96,7 +232,7 @@ wix/
 </Wix>
 ```
 
-### GitHub Actions Windows Job 模板
+### GitHub Actions Windows Job
 
 ```yaml
   build-windows:
@@ -155,12 +291,15 @@ wix/
           retention-days: 7
 ```
 
-## macOS DMG 打包
+---
+
+## Web 打包
 
 ```yaml
-  build-macos:
-    name: Build macOS
-    runs-on: macos-latest
+  build-web:
+    name: Build Web
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
@@ -170,61 +309,27 @@ wix/
           cache: true
 
       - run: flutter pub get
-      - run: flutter build macos --release
-
-      - name: Install create-dmg
-        run: |
-          if ! command -v create-dmg &> /dev/null; then
-            brew install create-dmg
-          fi
-
-      - name: Prepare and Create DMG
-        run: |
-          APP_PATH="build/macos/Build/Products/Release/<AppName>.app"
-          DMG_PATH="<AppName>-macos.dmg"
-
-          xattr -cr "$APP_PATH"
-          chmod +x "$APP_PATH/Contents/MacOS/<AppName>"
-
-          create-dmg \
-            --volname "<AppName>" \
-            --window-pos 200 200 \
-            --window-size 600 400 \
-            --icon-size 80 \
-            --icon "<AppName>.app" 150 200 \
-            --app-drop-link 450 200 \
-            --hide-extension "<AppName>.app" \
-            --format UDZO \
-            "$DMG_PATH" \
-            "$APP_PATH"
+      - run: flutter build web --release --no-web-resources-cdn
 
       - uses: actions/upload-artifact@v4
         with:
-          name: macos-dmg
-          path: <AppName>-macos.dmg
+          name: web-build
+          path: build/web
           retention-days: 7
 ```
 
-## 完整坑点清单
+---
 
-| 坑点 | 现象 | 解决方案 |
-|---|---|---|
-| WiX 路径硬编码 | `heat.exe` 找不到 | runner 已预装 WiX v3，使用 `Get-Command` 验证，不要硬编码 `C:\Program Files (x86)\...` |
-| `heat --help` 失败 | Install WiX 步骤报错退出 | `heat` 不支持 `--help`，改用 `Get-Command heat` 验证存在性 |
-| WiX v5 `wix build` 与 v3 混用 | 语法不兼容 | 统一使用 WiX v3 (`heat` + `candle` + `light`) |
-| `light` 找不到源文件 | `error LGHT0103: cannot find file 'SourceDir\...'` | `light` 必须加 `-b "$buildDir"` 绑定路径 |
-| exe 名称不一致 | MSI 中 Target 指向错误文件名 | 同步 `pubspec.yaml` name、`windows/CMakeLists.txt` BINARY_NAME、`windows/runner/Runner.rc` OriginalFilename |
-| 缺少桌面快捷方式 | 安装后只有开始菜单快捷方式 | `.wxs` 中必须显式声明 `<Directory Id="DesktopFolder" />` 并添加 `DirectoryRef` + `Component` + `Feature` 引用 |
-| `wix/` 目录未提交 | CI 找不到 `.wxs` 文件 | 确保 `wix/` 目录已 `git add` 并提交到仓库 |
-
-## 发布 Job 模板
+## 发布 Job（统一发布所有平台）
 
 ```yaml
   publish-release:
     name: Publish Release
     runs-on: ubuntu-latest
-    needs: [build-macos, build-windows]
-    if: always() && needs.build-macos.result == 'success' && needs.build-windows.result == 'success'
+    needs: [build-android, build-macos, build-windows, build-web]
+    if: always() && needs.build-android.result == 'success' && needs.build-macos.result == 'success' && needs.build-windows.result == 'success' && needs.build-web.result == 'success'
+    permissions:
+      contents: write
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -233,8 +338,21 @@ wix/
       - name: Prepare release files
         run: |
           mkdir -p release_dist
+
+          # Android
+          find artifacts -name "app-release.apk" -exec cp {} release_dist/<AppName>-android.apk \;
+
+          # macOS
           find artifacts -name "<AppName>-macos.dmg" -exec cp {} release_dist/ \;
+
+          # Windows
           find artifacts -name "<AppName>-windows.msi" -exec cp {} release_dist/ \;
+
+          # Web - 打包为 zip
+          if [ -d "artifacts/web-build" ]; then
+            cd artifacts/web-build && zip -r ../../release_dist/<AppName>-web.zip . && cd ../..
+          fi
+
           ls -la release_dist/
 
       - uses: softprops/action-gh-release@v2
@@ -249,13 +367,34 @@ wix/
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
+---
+
+## 完整坑点清单
+
+| 坑点 | 现象 | 解决方案 |
+|---|---|---|
+| WiX 路径硬编码 | `heat.exe` 找不到 | runner 已预装 WiX v3，使用 `Get-Command` 验证，不要硬编码 `C:\Program Files (x86)\...` |
+| `heat --help` 失败 | Install WiX 步骤报错退出 | `heat` 不支持 `--help`，改用 `Get-Command heat` 验证存在性 |
+| WiX v5 `wix build` 与 v3 混用 | 语法不兼容 | 统一使用 WiX v3 (`heat` + `candle` + `light`) |
+| `light` 找不到源文件 | `error LGHT0103: cannot find file 'SourceDir\...'` | `light` 必须加 `-b "$buildDir"` 绑定路径 |
+| exe 名称不一致 | MSI 中 Target 指向错误文件名 | 同步 `pubspec.yaml` name、`windows/CMakeLists.txt` BINARY_NAME、`windows/runner/Runner.rc` OriginalFilename |
+| 缺少桌面快捷方式 | 安装后只有开始菜单快捷方式 | `.wxs` 中必须显式声明 `<Directory Id="DesktopFolder" />` 并添加 `DirectoryRef` + `Component` + `Feature` 引用 |
+| `wix/` 目录未提交 | CI 找不到 `.wxs` 文件 | 确保 `wix/` 目录已 `git add` 并提交到仓库 |
+| Android 签名失败 | `key.properties` 不存在 | 在 CI 中动态创建 `android/key.properties` 和 `release.jks` |
+| macOS pod install 失败 | 缺少 CocoaPods 依赖 | 在 `flutter build macos` 之前运行 `cd macos && pod install` |
+
+---
+
 ## 快速检查清单
 
 创建或修改打包方案时，逐项确认：
 
+- [ ] Android `key.properties` 和 `release.jks` 通过 Secrets 注入
+- [ ] macOS `pod install` 在 build 之前执行
 - [ ] `wix/<AppName>.wxs` 包含 `DesktopFolder` 和 `DesktopShortcut`
 - [ ] `wix/<AppName>.wxs` 的 `Target` 指向正确的 exe 文件名
 - [ ] `windows/CMakeLists.txt` `BINARY_NAME` 与 pubspec name 一致
 - [ ] GitHub Actions 使用 `Get-Command` 验证 WiX 而非硬编码路径
 - [ ] `light` 命令包含 `-b "$buildDir"`
+- [ ] `publish-release` 的 `needs` 包含所有 build job
 - [ ] tag 格式为 `v*` 以触发 Release workflow
