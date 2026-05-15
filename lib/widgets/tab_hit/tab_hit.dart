@@ -3,16 +3,17 @@ import 'package:flutter/services.dart';
 
 import 'hit_matcher.dart';
 
-/// A smart-completion input widget driven by a [HitMatcher].
+/// An AI-coding-style smart-completion input widget driven by a [HitMatcher].
 ///
-/// - Press **Tab** to complete with the top (shortest) suggestion, or with the
-///   currently selected item when the dropdown is open.
-/// - Press **ArrowDown / ArrowUp** to cycle through suggestions and open the
-///   dropdown.
+/// ## Interaction
+/// - As you type, a **grey ghost text** appears inline after the caret,
+///   showing the top (shortest) suggestion.
+/// - Press **Tab** to accept the current suggestion.
+/// - When multiple suggestions exist, a dropdown list opens automatically;
+///   use **ArrowDown / ArrowUp** to cycle and **Tab** to confirm.
 /// - Press **Escape** to close the dropdown.
 ///
-/// The widget is designed to be extracted into a standalone package later, so
-/// it avoids any project-specific dependencies.
+/// Designed to be extracted into a standalone package later.
 class TabHit extends StatefulWidget {
   const TabHit({
     super.key,
@@ -52,9 +53,11 @@ class _TabHitState extends State<TabHit> {
   late final FocusNode _parentFocusNode;
   late final FocusNode _textFieldFocusNode;
   final LayerLink _layerLink = LayerLink();
+  final GlobalKey _textFieldKey = GlobalKey();
 
   List<String> _suggestions = const [];
   int _selectedIndex = 0;
+  String? _ghostText;
   OverlayEntry? _overlayEntry;
 
   bool get _hasExternalController => widget.controller != null;
@@ -86,14 +89,24 @@ class _TabHitState extends State<TabHit> {
   void _updateSuggestions() {
     final text = _controller.text;
     final suggestions = widget.matcher.match(text);
+
+    String? ghost;
+    if (suggestions.isNotEmpty && text.isNotEmpty) {
+      final first = suggestions[0];
+      if (first.startsWith(text)) {
+        ghost = first.substring(text.length);
+      }
+    }
+
     setState(() {
       _suggestions = suggestions;
       _selectedIndex = 0;
+      _ghostText = ghost;
     });
 
-    if (suggestions.length > 1) {
+    if (suggestions.isNotEmpty) {
       _showOverlay();
-    } else if (suggestions.isEmpty) {
+    } else {
       _hideOverlay();
     }
   }
@@ -165,6 +178,35 @@ class _TabHitState extends State<TabHit> {
     return KeyEventResult.ignored;
   }
 
+  double _measureTextWidth(String text, TextStyle? style) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+    );
+    painter.layout();
+    return painter.width;
+  }
+
+  EdgeInsets _contentPadding(BuildContext context) {
+    final decoration = widget.decoration;
+    if (decoration?.contentPadding != null) {
+      return decoration!.contentPadding! as EdgeInsets;
+    }
+    final isDense = decoration?.isDense ?? false;
+    final isCollapsed = decoration?.isCollapsed ?? false;
+    if (isCollapsed) return EdgeInsets.zero;
+    if (isDense) {
+      return const EdgeInsets.symmetric(horizontal: 12, vertical: 8);
+    }
+    return const EdgeInsets.symmetric(horizontal: 12, vertical: 12);
+  }
+
+  double _prefixWidth() {
+    if (widget.decoration?.prefixIcon != null) return 48;
+    if (widget.decoration?.prefix != null) return 48;
+    return 0;
+  }
+
   Widget _buildDropdown() {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -206,33 +248,69 @@ class _TabHitState extends State<TabHit> {
     );
   }
 
+  Widget _buildGhostText(TextStyle? textStyle) {
+    if (_ghostText == null || _ghostText!.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final style = textStyle ?? const TextStyle();
+    final inputWidth = _measureTextWidth(_controller.text, style);
+    final padding = _contentPadding(context);
+    final prefixW = _prefixWidth();
+
+    return Positioned.fill(
+      left: padding.left + prefixW + inputWidth,
+      child: IgnorePointer(
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            _ghostText!,
+            style: style.copyWith(
+              color: Colors.grey,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.clip,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final textStyle = widget.style ?? Theme.of(context).textTheme.bodyMedium;
+
     return CompositedTransformTarget(
       link: _layerLink,
       child: Focus(
         focusNode: _parentFocusNode,
         onKeyEvent: _onKeyEvent,
-        child: TextField(
-          controller: _controller,
-          focusNode: _textFieldFocusNode,
-          decoration: widget.decoration?.copyWith(
-                hintText: widget.hintText,
-              ) ??
-              InputDecoration(
-                hintText: widget.hintText,
-                filled: true,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(4),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-          style: widget.style,
-          cursorColor: widget.cursorColor,
-          onChanged: (value) {
-            _updateSuggestions();
-            widget.onChanged?.call(value);
-          },
+        child: Stack(
+          children: [
+            TextField(
+              key: _textFieldKey,
+              controller: _controller,
+              focusNode: _textFieldFocusNode,
+              decoration: widget.decoration?.copyWith(
+                    hintText: widget.hintText,
+                  ) ??
+                  InputDecoration(
+                    hintText: widget.hintText,
+                    filled: true,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(4),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+              style: widget.style,
+              cursorColor: widget.cursorColor,
+              onChanged: (value) {
+                _updateSuggestions();
+                widget.onChanged?.call(value);
+              },
+            ),
+            _buildGhostText(textStyle),
+          ],
         ),
       ),
     );
