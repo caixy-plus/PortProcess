@@ -49,7 +49,8 @@ class TabHit extends StatefulWidget {
 
 class _TabHitState extends State<TabHit> {
   late final TextEditingController _controller;
-  late final FocusNode _focusNode;
+  late final FocusNode _parentFocusNode;
+  late final FocusNode _textFieldFocusNode;
   final LayerLink _layerLink = LayerLink();
 
   List<String> _suggestions = const [];
@@ -63,23 +64,23 @@ class _TabHitState extends State<TabHit> {
   void initState() {
     super.initState();
     _controller = widget.controller ?? TextEditingController();
-    _focusNode = widget.focusNode ?? FocusNode();
-    _focusNode.addListener(_onFocusChange);
-    HardwareKeyboard.instance.addHandler(_handleKeyEvent);
+    _parentFocusNode = FocusNode();
+    _textFieldFocusNode = widget.focusNode ?? FocusNode();
+    _textFieldFocusNode.addListener(_onFocusChange);
   }
 
   @override
   void dispose() {
-    HardwareKeyboard.instance.removeHandler(_handleKeyEvent);
     _hideOverlay();
-    _focusNode.removeListener(_onFocusChange);
-    if (!_hasExternalFocusNode) _focusNode.dispose();
+    _textFieldFocusNode.removeListener(_onFocusChange);
+    _parentFocusNode.dispose();
+    if (!_hasExternalFocusNode) _textFieldFocusNode.dispose();
     if (!_hasExternalController) _controller.dispose();
     super.dispose();
   }
 
   void _onFocusChange() {
-    if (!_focusNode.hasFocus) _hideOverlay();
+    if (!_textFieldFocusNode.hasFocus) _hideOverlay();
   }
 
   void _updateSuggestions() {
@@ -123,15 +124,14 @@ class _TabHitState extends State<TabHit> {
     _overlayEntry = null;
   }
 
-  bool _handleKeyEvent(KeyEvent event) {
-    if (!_focusNode.hasFocus) return false;
-    if (event is! KeyDownEvent) return false;
+  KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
     if (event.logicalKey == LogicalKeyboardKey.tab) {
       if (_suggestions.isNotEmpty) {
         _completeWith(_selectedIndex);
       }
-      return true;
+      return KeyEventResult.handled;
     }
 
     if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
@@ -142,7 +142,7 @@ class _TabHitState extends State<TabHit> {
         });
         _overlayEntry?.markNeedsBuild();
       }
-      return true;
+      return KeyEventResult.handled;
     }
 
     if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
@@ -154,15 +154,15 @@ class _TabHitState extends State<TabHit> {
         });
         _overlayEntry?.markNeedsBuild();
       }
-      return true;
+      return KeyEventResult.handled;
     }
 
     if (event.logicalKey == LogicalKeyboardKey.escape) {
       _hideOverlay();
-      return true;
+      return KeyEventResult.handled;
     }
 
-    return false;
+    return KeyEventResult.ignored;
   }
 
   Widget _buildDropdown() {
@@ -210,26 +210,30 @@ class _TabHitState extends State<TabHit> {
   Widget build(BuildContext context) {
     return CompositedTransformTarget(
       link: _layerLink,
-      child: TextField(
-        controller: _controller,
-        focusNode: _focusNode,
-        decoration: widget.decoration?.copyWith(
-              hintText: widget.hintText,
-            ) ??
-            InputDecoration(
-              hintText: widget.hintText,
-              filled: true,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(4),
-                borderSide: BorderSide.none,
+      child: Focus(
+        focusNode: _parentFocusNode,
+        onKeyEvent: _onKeyEvent,
+        child: TextField(
+          controller: _controller,
+          focusNode: _textFieldFocusNode,
+          decoration: widget.decoration?.copyWith(
+                hintText: widget.hintText,
+              ) ??
+              InputDecoration(
+                hintText: widget.hintText,
+                filled: true,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(4),
+                  borderSide: BorderSide.none,
+                ),
               ),
-            ),
-        style: widget.style,
-        cursorColor: widget.cursorColor,
-        onChanged: (value) {
-          _updateSuggestions();
-          widget.onChanged?.call(value);
-        },
+          style: widget.style,
+          cursorColor: widget.cursorColor,
+          onChanged: (value) {
+            _updateSuggestions();
+            widget.onChanged?.call(value);
+          },
+        ),
       ),
     );
   }
