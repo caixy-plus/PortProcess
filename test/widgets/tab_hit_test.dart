@@ -20,9 +20,14 @@ void main() {
   }
 
   group('TabHit', () {
-    testWidgets('shows dropdown on typing matching prefix', (tester) async {
+    testWidgets('shows dropdown on ArrowDown when multiple matches', (tester) async {
       await pumpTabHit(tester);
       await tester.enterText(find.byType(TextField), 'j');
+      await tester.pump();
+
+      expect(find.text('java'), findsNothing);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
       await tester.pump();
 
       expect(find.text('java'), findsOneWidget);
@@ -59,6 +64,9 @@ void main() {
     testWidgets('hides dropdown on Escape', (tester) async {
       await pumpTabHit(tester);
       await tester.enterText(find.byType(TextField), 'j');
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
       await tester.pump();
 
       expect(find.text('java'), findsOneWidget);
