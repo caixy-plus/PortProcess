@@ -33,7 +33,7 @@
         <Shortcut Id="ApplicationStartMenuShortcut"
                   Name="Port Process"
                   Description="Port Process - Cross-platform port management tool"
-                  Target="[INSTALLFOLDER]port_manager.exe"
+                  Target="[INSTALLFOLDER]port_process.exe"
                   WorkingDirectory="INSTALLFOLDER" />
         <RemoveFolder Id="CleanUpShortCut" Directory="ApplicationProgramsFolder" On="uninstall" />
         <RegistryValue Root="HKCU" Key="Software\Port Process" Name="installed" Type="integer" Value="1" KeyPath="yes" />

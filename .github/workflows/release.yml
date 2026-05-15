@@ -94,20 +94,42 @@ jobs:
       - name: Build Windows
         run: flutter build windows --release
 
-      - name: Package Windows ZIP
+      - name: Install WiX Toolset
+        run: |
+          choco install wixtoolset -y
+          echo "C:\Program Files (x86)\WiX Toolset v3.11\bin" >> $env:GITHUB_PATH
+
+      - name: Generate WiX components
         shell: pwsh
         run: |
           $buildDir = "build\windows\x64\runner\Release"
           if (!(Test-Path $buildDir)) { $buildDir = "build\windows\runner\Release" }
-          
-          # 创建 ZIP 包
-          Compress-Archive -Path "$buildDir\*" -DestinationPath "PortProcess-windows.zip" -Force
+
+          & "C:\Program Files (x86)\WiX Toolset v3.11\bin\heat.exe" dir "$buildDir" `
+            -cg ProductComponents -gg -scom -sreg -sfrag -srd -dr INSTALLFOLDER `
+            -out "wix\components.wxs"
+
+      - name: Build MSI
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+
+          & "C:\Program Files (x86)\WiX Toolset v3.11\bin\candle.exe" `
+            -arch x64 -dVersion="$version" `
+            "wix\PortProcess.wxs" "wix\components.wxs" `
+            -out "wix\obj\"
+
+          & "C:\Program Files (x86)\WiX Toolset v3.11\bin\light.exe" `
+            -ext WixUIExtension `
+            -cultures:en-us `
+            "wix\obj\PortProcess.wixobj" "wix\obj\components.wixobj" `
+            -out "PortProcess-windows.msi"
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
-          name: windows-zip
-          path: PortProcess-windows.zip
+          name: windows-msi
+          path: PortProcess-windows.msi
           retention-days: 7
 
   publish-release:
@@ -128,8 +150,8 @@ jobs:
           # 1. macOS - 搜索 DMG
           find artifacts -name "PortProcess-macos.dmg" -exec cp {} release_dist/ \;
 
-          # 2. Windows - 搜索 ZIP
-          find artifacts -name "PortProcess-windows.zip" -exec cp {} release_dist/ \;
+          # 2. Windows - 搜索 MSI
+          find artifacts -name "PortProcess-windows.msi" -exec cp {} release_dist/ \;
 
           ls -la release_dist/
 
