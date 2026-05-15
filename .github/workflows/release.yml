@@ -117,8 +117,12 @@ jobs:
             "wix\PortProcess.wxs" "wix\components.wxs" `
             -out "wix\obj\"
 
+          $buildDir = "build\windows\x64\runner\Release"
+          if (!(Test-Path $buildDir)) { $buildDir = "build\windows\runner\Release" }
+
           light -ext WixUIExtension `
             -cultures:en-us `
+            -b "$buildDir" `
             "wix\obj\PortProcess.wixobj" "wix\obj\components.wixobj" `
             -out "PortProcess-windows.msi"
 
