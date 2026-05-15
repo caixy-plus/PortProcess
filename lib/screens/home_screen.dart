@@ -1,11 +1,13 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../models/process_info.dart';
 import '../services/process_service.dart';
+import '../widgets/tab_hit/tab_hit.dart';
+import '../widgets/tab_hit/keyword_matcher.dart';
+import '../widgets/window_title_bar/window_title_bar.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -168,7 +170,32 @@ class _HomeScreenState extends State<HomeScreen> with WindowListener {
         color: theme.colorScheme.surface,
         child: Column(
           children: [
-            _buildTitleBar(theme, isDark),
+            WindowTitleBar(
+              title: 'Port Process',
+              leading: Icon(
+                Icons.settings_ethernet,
+                size: 18,
+                color: theme.colorScheme.primary,
+              ),
+              isMaximized: _isMaximized,
+              onDragStart: windowManager.startDragging,
+              onDoubleTap: () async {
+                if (await windowManager.isMaximized()) {
+                  await windowManager.unmaximize();
+                } else {
+                  await windowManager.maximize();
+                }
+              },
+              onMinimize: windowManager.minimize,
+              onMaximize: () async {
+                if (await windowManager.isMaximized()) {
+                  await windowManager.unmaximize();
+                } else {
+                  await windowManager.maximize();
+                }
+              },
+              onClose: windowManager.close,
+            ),
             _buildSearchBar(theme),
             Expanded(
               child: _isLoading && _allProcesses.isEmpty
@@ -181,76 +208,6 @@ class _HomeScreenState extends State<HomeScreen> with WindowListener {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildTitleBar(ThemeData theme, bool isDark) {
-    return GestureDetector(
-      onPanStart: (_) => windowManager.startDragging(),
-      onDoubleTap: () async {
-        if (await windowManager.isMaximized()) {
-          await windowManager.unmaximize();
-        } else {
-          await windowManager.maximize();
-        }
-      },
-      child: Container(
-        height: 40,
-        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
-        child: Row(
-          children: [
-            const SizedBox(width: 16),
-            Icon(Icons.settings_ethernet, size: 18, color: theme.colorScheme.primary),
-            const SizedBox(width: 8),
-            Text(
-              'Port Process',
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const Spacer(),
-            _buildWindowButton(
-              icon: Icons.remove,
-              onPressed: () => windowManager.minimize(),
-              borderRadius: const BorderRadius.horizontal(left: Radius.circular(6)),
-            ),
-            _buildWindowButton(
-              icon: _isMaximized ? null : Icons.crop_square,
-              customIcon: _isMaximized ? _RestoreIcon(color: theme.iconTheme.color) : null,
-              onPressed: () async {
-                if (await windowManager.isMaximized()) {
-                  await windowManager.unmaximize();
-                } else {
-                  await windowManager.maximize();
-                }
-              },
-            ),
-            _buildWindowButton(
-              icon: Icons.close,
-              onPressed: () => windowManager.close(),
-              hoverColor: Colors.red,
-              borderRadius: const BorderRadius.all(Radius.circular(12)),
-            ),
-            const SizedBox(width: 4),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildWindowButton({
-    required VoidCallback onPressed,
-    IconData? icon,
-    Widget? customIcon,
-    Color? hoverColor,
-    BorderRadius? borderRadius,
-  }) {
-    return _WindowControlButton(
-      icon: icon,
-      customIcon: customIcon,
-      onPressed: onPressed,
-      hoverColor: hoverColor,
-      borderRadius: borderRadius,
     );
   }
 
@@ -268,11 +225,36 @@ class _HomeScreenState extends State<HomeScreen> with WindowListener {
       child: Row(
         children: [
           Expanded(
-            child: TextField(
+            child: TabHit(
               controller: _searchController,
               focusNode: _searchFocusNode,
+              matcher: KeywordHitMatcher(
+                keywords: const [
+                  'java',
+                  'node',
+                  'python',
+                  'docker',
+                  'nginx',
+                  'mysql',
+                  'redis',
+                  'postgres',
+                  'mongodb',
+                  '8080',
+                  '3000',
+                  '3306',
+                  '5432',
+                  '6379',
+                  '27017',
+                  '80',
+                  '443',
+                  '22',
+                  '80443',
+                ],
+                caseSensitive: false,
+              ),
+              hintText: 'Search by port, PID, or name...',
+              onChanged: (_) => _onSearchChanged(),
               decoration: InputDecoration(
-                hintText: 'Search by port, PID, or name...',
                 prefixIcon: const Icon(Icons.search, size: 20),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
@@ -291,7 +273,6 @@ class _HomeScreenState extends State<HomeScreen> with WindowListener {
                 ),
                 contentPadding: const EdgeInsets.symmetric(vertical: 10),
               ),
-              onChanged: (_) => _onSearchChanged(),
             ),
           ),
           const SizedBox(width: 12),
@@ -526,108 +507,3 @@ class _ProcessListTileState extends State<_ProcessListTile> {
   }
 }
 
-/// Windows 原生风格的窗口控制按钮
-/// 最小化/最大化：hover 时显示深灰色背景
-/// 关闭：hover 时显示红色背景，图标变白
-class _WindowControlButton extends StatefulWidget {
-  final IconData? icon;
-  final Widget? customIcon;
-  final VoidCallback onPressed;
-  final Color? hoverColor;
-  final BorderRadius? borderRadius;
-
-  const _WindowControlButton({
-    this.icon,
-    this.customIcon,
-    required this.onPressed,
-    this.hoverColor,
-    this.borderRadius,
-  }) : assert(icon != null || customIcon != null);
-
-  @override
-  State<_WindowControlButton> createState() => _WindowControlButtonState();
-}
-
-class _WindowControlButtonState extends State<_WindowControlButton> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final isCloseButton = widget.hoverColor == Colors.red;
-
-    final Color defaultHoverBg = const Color(0xFFE5E5E5);
-    final Color closeHoverBg = const Color(0xFFE81123);
-
-    final bgColor = _isHovered
-        ? (isCloseButton ? closeHoverBg : defaultHoverBg)
-        : Colors.transparent;
-
-    final iconColor = _isHovered && isCloseButton ? Colors.white : null;
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: GestureDetector(
-        onTap: widget.onPressed,
-        child: Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: bgColor,
-            borderRadius: widget.borderRadius,
-          ),
-          child: Center(
-            child: widget.customIcon ?? Icon(
-              widget.icon!,
-              size: 14,
-              color: iconColor,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RestoreIcon extends StatelessWidget {
-  final Color? color;
-
-  const _RestoreIcon({this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    final effectiveColor = color ?? Theme.of(context).iconTheme.color ?? Colors.black;
-
-    return SizedBox(
-      width: 14,
-      height: 14,
-      child: Stack(
-        children: [
-          Positioned(
-            left: 2,
-            top: 0,
-            child: Container(
-              width: 10,
-              height: 8,
-              decoration: BoxDecoration(
-                border: Border.all(color: effectiveColor, width: 1.2),
-              ),
-            ),
-          ),
-          Positioned(
-            left: 0,
-            top: 4,
-            child: Container(
-              width: 10,
-              height: 8,
-              decoration: BoxDecoration(
-                border: Border.all(color: effectiveColor, width: 1.2),
-                color: effectiveColor.withOpacity(0.1),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
