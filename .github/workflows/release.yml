@@ -95,9 +95,12 @@ jobs:
         run: flutter build windows --release
 
       - name: Install WiX Toolset
+        shell: pwsh
         run: |
-          choco install wixtoolset -y
-          echo "C:\Program Files (x86)\WiX Toolset v3.11\bin" >> $env:GITHUB_PATH
+          if (!(Get-Command heat -ErrorAction SilentlyContinue)) {
+            choco install wixtoolset -y
+          }
+          heat --help
 
       - name: Generate WiX components
         shell: pwsh
@@ -105,7 +108,7 @@ jobs:
           $buildDir = "build\windows\x64\runner\Release"
           if (!(Test-Path $buildDir)) { $buildDir = "build\windows\runner\Release" }
 
-          & "C:\Program Files (x86)\WiX Toolset v3.11\bin\heat.exe" dir "$buildDir" `
+          heat dir "$buildDir" `
             -cg ProductComponents -gg -scom -sreg -sfrag -srd -dr INSTALLFOLDER `
             -out "wix\components.wxs"
 
@@ -114,13 +117,11 @@ jobs:
         run: |
           $version = "${{ github.ref_name }}".TrimStart('v')
 
-          & "C:\Program Files (x86)\WiX Toolset v3.11\bin\candle.exe" `
-            -arch x64 -dVersion="$version" `
+          candle -arch x64 -dVersion="$version" `
             "wix\PortProcess.wxs" "wix\components.wxs" `
             -out "wix\obj\"
 
-          & "C:\Program Files (x86)\WiX Toolset v3.11\bin\light.exe" `
-            -ext WixUIExtension `
+          light -ext WixUIExtension `
             -cultures:en-us `
             "wix\obj\PortProcess.wixobj" "wix\obj\components.wixobj" `
             -out "PortProcess-windows.msi"
