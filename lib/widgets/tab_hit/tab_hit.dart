@@ -104,9 +104,8 @@ class _TabHitState extends State<TabHit> {
       _ghostText = ghost;
     });
 
-    if (suggestions.isNotEmpty) {
-      _showOverlay();
-    } else {
+    // Only keep overlay open if it was already open (user pressed arrow keys).
+    if (suggestions.isEmpty) {
       _hideOverlay();
     }
   }
@@ -225,22 +224,39 @@ class _TabHitState extends State<TabHit> {
             constraints: BoxConstraints(
               maxHeight: widget.suggestionMaxHeight,
             ),
-            child: ListView.builder(
-              padding: EdgeInsets.zero,
-              shrinkWrap: true,
-              itemCount: _suggestions.length,
-              itemBuilder: (context, index) {
-                final isSelected = index == _selectedIndex;
-                return _SuggestionItem(
-                  text: _suggestions[index],
-                  isSelected: isSelected,
-                  isDark: isDark,
-                  theme: theme,
-                  height: widget.suggestionItemHeight,
-                  padding: widget.suggestionItemPadding,
-                  onTap: () => _completeWith(index),
-                );
-              },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  child: Text(
+                    '\u2191 \u2193 to select',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                Flexible(
+                  child: ListView.builder(
+                    padding: EdgeInsets.zero,
+                    shrinkWrap: true,
+                    itemCount: _suggestions.length,
+                    itemBuilder: (context, index) {
+                      final isSelected = index == _selectedIndex;
+                      return _SuggestionItem(
+                        text: _suggestions[index],
+                        isSelected: isSelected,
+                        isDark: isDark,
+                        theme: theme,
+                        height: widget.suggestionItemHeight,
+                        padding: widget.suggestionItemPadding,
+                        onTap: () => _completeWith(index),
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
           ),
         ),
