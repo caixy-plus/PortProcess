@@ -94,13 +94,9 @@ jobs:
       - name: Build Windows
         run: flutter build windows --release
 
-      - name: Install WiX Toolset
+      - name: Verify WiX Toolset
         shell: pwsh
-        run: |
-          if (!(Get-Command heat -ErrorAction SilentlyContinue)) {
-            choco install wixtoolset -y
-          }
-          heat --help
+        run: Get-Command heat, candle, light
 
       - name: Generate WiX components
         shell: pwsh
